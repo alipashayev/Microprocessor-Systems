@@ -1,0 +1,32 @@
+void setup() {
+Serial.begin(9600);
+
+uint8_t r16_val, r17_val, r18_val, sreg_val; 
+asm volatile(
+    "ldi r16, 50        \n\t"  
+    "ldi r17, 200       \n\t"
+    "sub r16, r17       \n\t"  
+    "mov r18, r16       \n\t"  
+
+  
+    "mov %0, r16        \n\t"  
+    "mov %1, r17        \n\t"  
+    "mov %2, r18        \n\t"  
+    "in  %3, __SREG__   \n\t"  
+    : "=r"(r16_val), "=r"(r17_val), "=r"(r18_val), "=r"(sreg_val)
+    :
+    : "r16", "r17", "r18"       
+  );
+
+  Serial.print("R16 (X - Y): "); Serial.println(r16_val);   
+  Serial.print("R17 (Y): "); Serial.println(r17_val);  
+  Serial.print("R18 (result):"); Serial.println(r18_val);   
+
+  Serial.print("SREG (bin): 0b"); Serial.println(sreg_val, BIN);
+  bool Z = (sreg_val & (1 << 1)) != 0;
+  bool C = (sreg_val & (1 << 0)) != 0; 
+  Serial.print("Z flag: "); Serial.println(Z ? "1" : "0");
+  Serial.print("C flag: "); Serial.println(C ? "1" : "0");
+}
+
+void loop() {}
