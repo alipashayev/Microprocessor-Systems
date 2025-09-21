@@ -1,0 +1,20 @@
+void setup() {
+DDRB |= (1<<DDB4);
+DDRD &= ~(1<<DDD4);
+}
+
+void loop() {
+  
+static uint8_t counter = 0; 
+uint8_t buttonRead = (PIND&(1<<PIND4))>>PIND4;
+if(buttonRead){
+  counter++;
+  delay(200);
+}
+if(counter%2==1){
+  PORTB |= (1<<PORTB4);
+}
+else if(counter%2==0){
+  PORTB &= ~(1<<PORTB4);
+}
+}
