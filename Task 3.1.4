@@ -1,0 +1,13 @@
+void setup(){
+DDRB |= (1<<DDB4); // led output PB4
+}
+void loop(){
+for(uint8_t i=0;i<5;i++){
+  PORTB = (1<<i);
+}
+delay(1000);
+for(uint8_t i=0;i<5;i++){
+  PORTB = (0<<i);
+}
+delay(1000);
+}
