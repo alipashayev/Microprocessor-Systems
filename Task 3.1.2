@@ -1,0 +1,9 @@
+void setup(){
+  DDRB |= (1<<DDB4);
+}
+void loop(){
+  PORTB |= (1<<PORTB4);
+  delay(500);
+  PORTB &= ~(1<<PORTB4);
+  delay(500);
+}
