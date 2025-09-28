@@ -1,0 +1,10 @@
+void setup() {
+DDRB = 0b00010000; // led output PB4
+}
+
+void loop() {
+PORTB = 0b00010000;
+delay(500);
+PORTB = 0b00000000;
+delay(500);
+}
