@@ -1,0 +1,47 @@
+#include <Arduino.h>
+#include <avr/io.h>
+
+uint8_t counter = 0;
+uint8_t last = 0;  
+void setup() {
+  Serial.begin(9600);
+  delay(200); 
+
+  DDRD  &= ~(1 << DDD4);
+  PORTD &= ~(1 << PORTD4);
+
+  while (EECR & (1 << 1)) {}   
+  EEAR = 0;
+  EECR |= (1 << 0);            
+  counter = EEDR;
+  if (counter == 0xFF) counter = 0;
+
+  last = (PIND & (1 << PIND4)) ? 1 : 0;
+
+  Serial.print("Start counter = ");
+  Serial.println(counter);
+}
+
+void loop() {
+  uint8_t current = (PIND & (1 << PIND4)) ? 1 : 0;
+
+  if (last == 0 && current == 1) {
+    delay(20);                              
+    if (PIND & (1 << PIND4)) {              
+      counter++;
+
+      while (EECR & (1 << 1)) {}            
+      EEAR = 0;
+      EEDR = counter;
+      EECR |= (1 << 2);                    
+      EECR |= (1 << 1);                    
+
+      Serial.print("Counter = ");
+      Serial.println(counter);
+      while (PIND & (1 << PIND4)) {}
+      delay(20);                       
+    }
+  }
+
+  last = current;
+}
