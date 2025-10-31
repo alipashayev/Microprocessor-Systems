@@ -1,0 +1,80 @@
+// Arduino UNO — register-level
+// D5  = PD5  = OC0B  (Timer0, 8-bit)
+// D10 = PB2  = OC1B  (Timer1, Fast PWM Mode14)
+// D11 = PB3  = OC2A  (Timer2, 8-bit)
+// Button = D8 = PB0 (pull-down externally)
+
+uint8_t step = 0;        // button sequence
+uint8_t prevButton = 0;  // previous button state
+
+// pre-calc duty values
+const uint8_t duty8_25  = 64;
+const uint8_t duty8_50  = 128;
+const uint8_t duty8_75  = 191;
+const uint8_t duty8_100 = 255;
+
+const uint16_t ICR1_top = 1999;
+const uint16_t duty1_25  = 500;
+const uint16_t duty1_50  = 1000;
+const uint16_t duty1_75  = 1500;
+const uint16_t duty1_100 = 1999;
+
+void small_delay_ms(uint16_t ms) {
+  volatile uint16_t i, j;
+  for (i = 0; i < ms; i++)
+    for (j = 0; j < 2000; j++) asm volatile("nop");
+}
+
+void setup() {
+  DDRD |= (1 << PD5);  
+  DDRB |= (1 << PB2);   
+  DDRB |= (1 << PB3);   
+  DDRB &= ~(1 << PB0);  
+
+  PORTB &= ~(1 << PB0); 
+
+  TCCR0A = (1 << WGM01) | (1 << WGM00) | (1 << COM0B1); 
+  TCCR0B = (1 << CS01) | (1 << CS00);                  
+  OCR0B = 0;                                           
+
+  TCCR1A = (1 << WGM11) | (1 << COM1B1);               
+  TCCR1B = (1 << WGM13) | (1 << WGM12) | (1 << CS11);  
+  ICR1 = ICR1_top;
+  OCR1B = 0;                                           
+
+  TCCR2A = (1 << WGM21) | (1 << WGM20) | (1 << COM2A1);
+  TCCR2B = (1 << CS22);                                 
+  OCR2A = 0;                                         
+}
+
+void loop() {
+  uint8_t btn = (PINB & (1 << PB0)) ? 1 : 0;
+
+  if (btn && !prevButton) {
+    small_delay_ms(20);
+    if (PINB & (1 << PB0)) {
+      if (step >= 12) {
+        OCR0B = 0;   
+        OCR1B = 0;   
+        OCR2A = 0;   
+        step = 0;
+      } else {
+        step++;
+        if      (step == 1)  OCR0B = duty8_25;
+        else if (step == 2)  OCR0B = duty8_50;
+        else if (step == 3)  OCR0B = duty8_75;
+        else if (step == 4)  OCR0B = duty8_100;
+        else if (step == 5)  OCR1B = duty1_25;
+        else if (step == 6)  OCR1B = duty1_50;
+        else if (step == 7)  OCR1B = duty1_75;
+        else if (step == 8)  OCR1B = duty1_100;
+        else if (step == 9)  OCR2A = duty8_25;
+        else if (step == 10) OCR2A = duty8_50;
+        else if (step == 11) OCR2A = duty8_75;
+        else if (step == 12) OCR2A = duty8_100;
+      }
+    }
+  }
+
+  prevButton = btn;
+}
