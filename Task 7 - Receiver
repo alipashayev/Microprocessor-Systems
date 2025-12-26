@@ -1,0 +1,45 @@
+#include <avr/io.h>
+
+void uart_init(void)
+{
+  uint16_t ubrr = 103;   // 9600 baud @ 16 MHz
+
+  UBRR0H = (ubrr >> 8);
+  UBRR0L = ubrr;
+
+  UCSR0B = (1 << RXEN0); 
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); 
+}
+
+uint8_t uart_receive(void)
+{
+  while (!(UCSR0A & (1 << RXC0)));
+  return UDR0;
+}
+
+void setup()
+{
+  DDRD |= (1 << PD3) | (1 << PD4) | (1 << PD5);
+
+  PORTD &= ~((1 << PD3) | (1 << PD4) | (1 << PD5));
+
+  uart_init();
+}
+
+void loop()
+{
+    uint8_t data;
+
+  do {
+    data = uart_receive();
+  } while (data == '\n' || data == '\r');
+
+  PORTD &= ~((1 << PD3) | (1 << PD4) | (1 << PD5));
+
+  if (data == '1')
+    PORTD |= (1 << PD3);
+  else if (data == '2')
+    PORTD |= (1 << PD4);
+  else if (data == '3')
+    PORTD |= (1 << PD5);
+}
