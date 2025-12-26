@@ -1,0 +1,41 @@
+#include <Arduino.h>
+
+static const uint8_t KEY1 = 0xB7;
+static const uint8_t KEY2 = 0x3D;
+
+static const uint8_t S[16]  = { 0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD,
+                                0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2 };
+static const uint8_t Si[16] = { 0x5, 0xE, 0xF, 0x8, 0xC, 0x1, 0x2, 0xD,
+                                0xB, 0x4, 0x6, 0x3, 0x0, 0x7, 0x9, 0xA };
+
+static inline uint8_t rotr8(uint8_t x, uint8_t r) { return (uint8_t)((x >> r) | (x << (8 - r))); }
+
+static inline uint8_t inv_sub_nibbles(uint8_t x) {
+  return (uint8_t)((Si[x >> 4] << 4) | Si[x & 0x0F]);
+}
+
+static inline uint8_t decrypt_ecb(uint8_t c) {
+  uint8_t x = rotr8(c, 1);
+  x = inv_sub_nibbles(x);
+  x ^= KEY2;
+
+  x = rotr8(x, 3);
+  x = inv_sub_nibbles(x);
+  x ^= KEY1;
+  return x;
+}
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Receiver ready");
+}
+
+void loop() {
+  while (Serial.available() > 0) {
+    uint8_t c = (uint8_t)Serial.read();
+    uint8_t p = decrypt_ecb(c);
+
+    Serial.print("Decrypted: ");
+    Serial.println(p);
+  }
+}
