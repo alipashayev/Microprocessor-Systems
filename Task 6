@@ -1,0 +1,71 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+volatile uint8_t digit = 0;
+volatile bool paused = false;
+
+const uint8_t segMap[10] = {
+  0b00111111, // 0
+  0b00000110, // 1
+  0b01011011, // 2
+  0b01001111, // 3
+  0b01100110, // 4
+  0b01101101, // 5
+  0b01111101, // 6
+  0b00000111, // 7
+  0b01111111, // 8
+  0b01101111  // 9
+};
+
+
+void showDigit(uint8_t d)
+{
+
+  PORTD = (PORTD & 0x07) | (segMap[d] << 3);
+
+  
+  PORTB = (PORTB & 0xFC) | (segMap[d] >> 5);
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+  PINB |= (1 << PB2);   
+  if (!paused)
+  {
+    digit++;
+    if (digit > 9)
+      digit = 0;
+  }
+}
+
+ISR(INT0_vect)
+{
+  paused = !paused;
+}
+
+void setup()
+{
+  DDRD |= 0b11111000;   // D3–D7
+  DDRB |= 0b00000011;   // D8–D9
+
+  /* Button input D2 (INT0), ACTIVE-HIGH */
+  DDRD &= ~(1 << PD2);
+
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  TCCR1B |= (1 << WGM12);     // CTC mode
+  OCR1A = 31249;              // EXACT 0.5 second
+  TCCR1B |= (1 << CS12);      // Prescaler = 256
+  TIMSK1 |= (1 << OCIE1A);    // Enable compare interrupt
+
+  EICRA |= (1 << ISC01) | (1 << ISC00);
+  EIMSK |= (1 << INT0);
+
+  sei(); 
+}
+
+void loop()
+{
+  showDigit(digit);
+}
