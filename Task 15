@@ -1,0 +1,48 @@
+#include <Arduino.h>
+
+const uint8_t encrypted[] = {
+  87, 26, 72, 13, 67, 95, 89, 23, 72, 22, 73, 11, 87, 30, 73
+};
+const int N = sizeof(encrypted);
+
+bool isPrintable(uint8_t c) {
+  return (c >= 32 && c <= 126);
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  unsigned long startTime = micros();  
+
+  for (uint16_t key = 0; key < 256; key++) {
+    bool valid = true;
+
+    for (int i = 0; i < N; i++) {
+      uint8_t p = encrypted[i] ^ key;
+      if (!isPrintable(p)) {
+        valid = false;
+        break;
+      }
+    }
+
+    if (valid) {
+      unsigned long endTime = micros();  
+
+      Serial.print("Key (key1 ^ key2) = ");
+      Serial.println(key);
+
+      Serial.print("Plaintext: ");
+      for (int i = 0; i < N; i++) {
+        Serial.write(encrypted[i] ^ key);
+      }
+      Serial.println();
+
+      Serial.print("Bruteforce time (us): ");
+      Serial.println(endTime - startTime);
+      break;
+    }
+  }
+}
+
+void loop() {}
