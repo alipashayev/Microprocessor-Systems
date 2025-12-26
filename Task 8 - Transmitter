@@ -1,0 +1,39 @@
+#include <avr/io.h>
+
+static void uart_init(void)
+{
+  uint16_t ubrr = 103;
+  UBRR0H = (ubrr >> 8);
+  UBRR0L = (uint8_t)ubrr;
+  UCSR0A = 0; 
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0);          
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);           
+}
+
+static uint8_t uart_receive_blocking(void)
+{
+  while (!(UCSR0A & (1 << RXC0)));
+  return UDR0;
+}
+
+static void uart_transmit(uint8_t data)
+{
+  while (!(UCSR0A & (1 << UDRE0)));
+  UDR0 = data;
+}
+
+void setup()
+{
+  uart_init();
+}
+
+void loop()
+{
+  uint8_t c = uart_receive_blocking(); 
+
+  if (c == '\r' || c == '\n') return;
+  if (c == '1' || c == '2' || c == '3' || c == '4')
+  {
+    uart_transmit(c);
+  }
+}
