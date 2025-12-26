@@ -1,0 +1,246 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+
+#define SLAVE_ADDRESS 0x08
+#define TEST_MESSAGES 50
+
+void uart_init() {
+    UBRR0H = 0;
+    UBRR0L = 103; 
+    UCSR0B = (1 << TXEN0);
+    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+void uart_send(char c) {
+    while (!(UCSR0A & (1 << UDRE0)));
+    UDR0 = c;
+}
+
+void uart_print(const char* str) {
+    while (*str) uart_send(*str++);
+}
+
+void uart_println(const char* str) {
+    uart_print(str);
+    uart_send('\r');
+    uart_send('\n');
+}
+
+void uart_print_num(uint32_t num) {
+    char buffer[12];
+    char* ptr = buffer + 11;
+    *ptr = '\0';
+    
+    if (num == 0) {
+        uart_send('0');
+        return;
+    }
+    
+    while (num > 0) {
+        *(--ptr) = '0' + (num % 10);
+        num /= 10;
+    }
+    uart_print(ptr);
+}
+
+
+void timer1_init() {
+    TCCR1A = 0;
+    TCCR1B = (1 << CS11); 
+    TCNT1 = 0;
+}
+
+uint32_t micros() {
+    return TCNT1 / 2; 
+}
+
+void micros_reset() {
+    TCNT1 = 0;
+}
+
+void i2c_set_speed(uint8_t twbr_value, uint8_t prescaler) {
+    TWBR = twbr_value;
+    TWSR = (TWSR & 0xF8) | prescaler; 
+    TWCR = (1 << TWEN);
+}
+
+void i2c_init_default() {
+    TWBR = 72;  
+    TWSR = 0x00; 
+    TWCR = (1 << TWEN);
+}
+
+void i2c_init_25khz() {
+    i2c_set_speed(312, 0x00);
+}
+
+void i2c_init_100khz() {
+    i2c_set_speed(72, 0x00);
+}
+
+void i2c_init_400khz() {
+    i2c_set_speed(12, 0x00);
+}
+
+void i2c_start() {
+    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+}
+
+void i2c_stop() {
+    TWCR = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN);
+    _delay_us(50);
+}
+
+void i2c_write(uint8_t data) {
+    TWDR = data;
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+}
+
+uint8_t i2c_read_ack() {
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA);
+    while (!(TWCR & (1 << TWINT)));
+    return TWDR;
+}
+
+uint8_t i2c_read_nack() {
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+    return TWDR;
+}
+
+void i2c_send_message(uint8_t data) {
+    i2c_start();
+    i2c_write((SLAVE_ADDRESS << 1) | 0);
+    i2c_write(data);
+    i2c_stop();
+}
+
+uint8_t i2c_receive_message() {
+    uint8_t data;
+    i2c_start();
+    i2c_write((SLAVE_ADDRESS << 1) | 1);
+    data = i2c_read_nack();
+    i2c_stop();
+    return data;
+}
+
+void run_speed_test(const char* speed_name) {
+    uart_println("\n================================");
+    uart_print("TEST: ");
+    uart_println(speed_name);
+    uart_println("================================");
+    
+    _delay_ms(500); 
+    
+    uint32_t start_time, end_time, total_time;
+    uint16_t success_count = 0;
+    
+    micros_reset();
+    start_time = micros();
+    
+    for (uint16_t i = 0; i < TEST_MESSAGES; i++) {
+        uint8_t send_data = (uint8_t)(i & 0xFF);
+        i2c_send_message(send_data);
+        
+        _delay_us(100);
+        
+        uint8_t received = i2c_receive_message();
+        
+        if (received == send_data) {
+            success_count++;
+        }
+        
+        _delay_ms(1); 
+    }
+    
+    end_time = micros();
+    total_time = end_time - start_time;
+    
+    uart_print("Messages sent: ");
+    uart_print_num(TEST_MESSAGES);
+    uart_println("");
+    
+    uart_print("Successful answers: ");
+    uart_print_num(success_count);
+    uart_println("");
+    
+    uart_print("Total Time: ");
+    uart_print_num(total_time);
+    uart_println(" microsecond");
+    
+    uart_print("Total Time: ");
+    uart_print_num(total_time / 1000);
+    uart_println(" millisecond");
+    
+    if (TEST_MESSAGES > 0) {
+        uint32_t avg_time = total_time / TEST_MESSAGES;
+        uart_print("Avg Time (1 message): ");
+        uart_print_num(avg_time);
+        uart_println(" microsecond");
+    }
+    
+    uint16_t success_rate = (success_count * 100) / TEST_MESSAGES;
+    uart_print("Success rate: ");
+    uart_print_num(success_rate);
+    uart_println("%");
+    
+    uart_println("================================\n");
+    
+    _delay_ms(2000);
+}
+
+int main(void) {
+    uart_init();
+    timer1_init();
+    
+    _delay_ms(2000); 
+    
+    uart_println("\n\n");
+    uart_println("I2C test");
+    uart_println("");
+    uart_println("Test parameters:");
+    uart_print("- Message count: ");
+    uart_print_num(TEST_MESSAGES);
+    uart_println("");
+    uart_println("- F_CPU: 16 MHz");
+    uart_println("- Slave address: 0x08");
+    uart_println("");
+    uart_println("Formula:");
+    uart_println("SCL = F_CPU / (16 + 2*TWBR*Prescaler)");
+    uart_println("");
+    
+    _delay_ms(3000);
+    
+    // TEST 1: Default (100 kHz)
+    uart_println("TWBR = 72, Prescaler = 1");
+    i2c_init_default();
+    run_speed_test("DEFAULT (100 kHz)");
+    
+    // TEST 2: 25 kHz (Slow Mode)
+    uart_println("TWBR = 312, Prescaler = 1");
+    i2c_init_25khz();
+    run_speed_test("SLOW MODE (25 kHz)");
+    
+    // TEST 3: 100 kHz (Standard Mode)
+    uart_println("TWBR = 72, Prescaler = 1");
+    i2c_init_100khz();
+    run_speed_test("STANDARD MODE (100 kHz)");
+    
+    // TEST 4: 400 kHz (Fast Mode)
+    uart_println("TWBR = 12, Prescaler = 1");
+    i2c_init_400khz();
+    run_speed_test("FAST MODE (400 kHz)");
+    
+    uart_println("\n");
+    uart_println("All test completed");
+
+    
+    while (1) {
+        _delay_ms(1000);
+    }
+    
+    return 0;
+}
