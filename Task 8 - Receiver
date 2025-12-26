@@ -1,0 +1,124 @@
+#include <avr/io.h>
+#define LED_MASK ((1 << PD3) | (1 << PD4) | (1 << PD5))
+#define EEPROM_LEN_ADDR 0
+#define EEPROM_DATA_BASE 1
+#define EEPROM_MAX_DATA  100   
+
+static void uart_init(void)
+{
+  uint16_t ubrr = 103; // 9600 baud @16MHz
+  UBRR0H = (ubrr >> 8);
+  UBRR0L = (uint8_t)ubrr;
+
+  UCSR0A = 0;
+  UCSR0B = (1 << RXEN0);                      
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);     
+}
+
+static uint8_t uart_receive_blocking(void)
+{
+  while (!(UCSR0A & (1 << RXC0)));
+  return UDR0;
+}
+
+static void eeprom_write_byte_reg(uint16_t addr, uint8_t data)
+{
+  while (EECR & (1 << EEPE));
+
+  EEAR = addr;
+  EEDR = data;
+  EECR |= (1 << EEMPE);
+  EECR |= (1 << EEPE);
+}
+
+static uint8_t eeprom_read_byte_reg(uint16_t addr)
+{
+  while (EECR & (1 << EEPE));   
+  EEAR = addr;
+  EECR |= (1 << EERE);          
+  return EEDR;
+}
+
+static void timer1_init_1ms(void)
+{
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCCR1B |= (1 << WGM12);   
+  OCR1A = 249;
+  TCCR1B |= (1 << CS11) | (1 << CS10); 
+}
+
+static void delay_ms(uint16_t ms)
+{
+  while (ms--)
+  {
+    while (!(TIFR1 & (1 << OCF1A)));
+    TIFR1 |= (1 << OCF1A); 
+  }
+}
+
+static void leds_off(void)
+{
+  PORTD &= ~LED_MASK;
+}
+
+static void show_value(uint8_t v)
+{
+  leds_off();
+  if (v == 1) PORTD |= (1 << PD3);
+  else if (v == 2) PORTD |= (1 << PD4);
+  else if (v == 3) PORTD |= (1 << PD5);
+}
+
+static void playback_sequence(void)
+{
+  uint8_t n = eeprom_read_byte_reg(EEPROM_LEN_ADDR);
+  if (n == 0 || n > EEPROM_MAX_DATA) return;
+
+  for (uint8_t i = 0; i < n; i++)
+  {
+    uint8_t v = eeprom_read_byte_reg(EEPROM_DATA_BASE + i);
+    show_value(v);
+    delay_ms(500);     
+    leds_off();
+    delay_ms(150);    
+  }
+}
+
+void setup()
+{
+  DDRD |= LED_MASK;
+  leds_off();
+
+  uart_init();
+  timer1_init_1ms();
+}
+
+void loop()
+{
+  static uint8_t idx = 0;   
+
+  uint8_t c = uart_receive_blocking();
+
+  if (c == '\r' || c == '\n') return;
+
+  if (c == '1' || c == '2' || c == '3')
+  {
+    if (idx < EEPROM_MAX_DATA)
+    {
+      uint8_t v = (uint8_t)(c - '0');
+      eeprom_write_byte_reg(EEPROM_DATA_BASE + idx, v);
+      idx++;
+    }
+  }
+  else if (c == '4')
+  {
+    if (idx > 0)
+      eeprom_write_byte_reg(EEPROM_LEN_ADDR, idx);
+
+    playback_sequence();
+
+    idx = 0;
+    leds_off();
+  }
+}
