@@ -1,0 +1,113 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+
+#define SLAVE_ADDRESS 0x08
+#define BUTTON_PIN 2  
+#define LED_PIN 5     
+
+void i2c_init() {
+    TWBR = 72;
+    TWSR = 0x00;
+    TWCR = (1 << TWEN);
+    
+    PORTC |= (1 << PC4) | (1 << PC5);
+}
+
+void i2c_start() {
+    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+}
+
+void i2c_stop() {
+    TWCR = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN);
+    _delay_us(100);
+}
+
+void i2c_write(uint8_t data) {
+    TWDR = data;
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+}
+
+uint8_t i2c_read_nack() {
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    while (!(TWCR & (1 << TWINT)));
+    return TWDR;
+}
+
+void i2c_send_to_slave(uint8_t data) {
+    i2c_start();
+    i2c_write((SLAVE_ADDRESS << 1) | 0);
+    i2c_write(data);
+    i2c_stop();
+}
+
+uint8_t i2c_read_from_slave() {
+    uint8_t data;
+    i2c_start();
+    i2c_write((SLAVE_ADDRESS << 1) | 1);
+    data = i2c_read_nack();
+    i2c_stop();
+    return data;
+}
+
+void gpio_init() {
+    DDRD &= ~(1 << BUTTON_PIN);  
+    PORTD &= ~(1 << BUTTON_PIN); 
+    
+    DDRD |= (1 << LED_PIN);
+    PORTD &= ~(1 << LED_PIN);
+}
+
+uint8_t read_button() {
+    return (PIND & (1 << BUTTON_PIN)) ? 1 : 0;
+}
+
+void led_on() {
+    PORTD |= (1 << LED_PIN);
+}
+
+void led_off() {
+    PORTD &= ~(1 << LED_PIN);
+}
+
+int main(void) {
+    uint8_t last_btn = 0;
+    uint8_t curr_btn = 0;
+    uint8_t led_timer = 0;
+    
+    gpio_init();
+    i2c_init();
+    
+    _delay_ms(1000); 
+    
+    while (1) {
+        curr_btn = read_button();
+        
+        if (curr_btn == 1 && last_btn == 0) {
+            i2c_send_to_slave('A');
+            _delay_ms(100);  
+        }
+        
+        last_btn = curr_btn;
+        
+        uint8_t received = i2c_read_from_slave();
+        
+        if (received == 'B') {
+            led_on();
+            led_timer = 20;  
+        }
+        
+        if (led_timer > 0) {
+            led_timer--;
+            if (led_timer == 0) {
+                led_off();
+            }
+        }
+        
+        _delay_ms(50);
+    }
+    
+    return 0;
+}
