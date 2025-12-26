@@ -1,0 +1,58 @@
+#include <avr/io.h>
+#include <string.h>
+
+#define LED_PIN   PB5    //
+#define TIME_PIN  PB4    
+
+/* ------------------ PRIME LIMIT ------------------ */
+// 2000th prime = 17389
+#define MAX_N 18000
+#define SIEVE_SIZE ((MAX_N - 3) / 2 + 1)
+static uint8_t sieve[SIEVE_SIZE / 8 + 1];
+
+#define SET_COMPOSITE(i)   (sieve[(i) >> 3] |=  (1 << ((i) & 7)))
+#define IS_COMPOSITE(i)    (sieve[(i) >> 3] &   (1 << ((i) & 7)))
+
+int main(void)
+{
+    DDRB |= (1 << LED_PIN) | (1 << TIME_PIN);
+
+    PORTB &= ~(1 << LED_PIN);  
+    PORTB &= ~(1 << TIME_PIN);  
+
+    PORTB |= (1 << TIME_PIN);   
+
+    memset(sieve, 0, sizeof(sieve));
+
+    uint16_t prime_count = 1;   
+    PORTB ^= (1 << LED_PIN);    
+
+    for (uint16_t i = 0; (2UL * i + 3) * (2UL * i + 3) < MAX_N; i++)
+    {
+        if (!IS_COMPOSITE(i))
+        {
+            uint16_t p = 2 * i + 3;
+            uint16_t start = (p * p - 3) / 2;
+
+            for (uint16_t j = start; j < SIEVE_SIZE; j += p)
+                SET_COMPOSITE(j);
+        }
+    }
+
+    for (uint16_t i = 0; i < SIEVE_SIZE && prime_count < 2000; i++)
+    {
+        if (!IS_COMPOSITE(i))
+        {
+            prime_count++;
+            PORTB ^= (1 << LED_PIN);  
+        }
+    }
+
+    PORTB &= ~(1 << TIME_PIN);  
+
+    PORTB |= (1 << LED_PIN);    
+
+    while (1)
+    {
+    }
+}
