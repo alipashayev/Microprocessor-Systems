@@ -1,0 +1,38 @@
+#include <avr/io.h>
+
+void spi_slave_init(void)
+{
+  // MISO (PB4) => OUTPUT
+  DDRB |= (1 << PB4);
+
+  // MOSI (PB3), SCK (PB5), SS (PB2) => INPUT
+  DDRB &= ~((1 << PB3) | (1 << PB5) | (1 << PB2));
+
+  // SPI Enable (Slave)
+  SPCR = (1 << SPE);
+}
+
+uint8_t spi_slave_receive(void)
+{
+  while (!(SPSR & (1 << SPIF)));  
+  return SPDR;
+}
+
+void setup()
+{
+  spi_slave_init();
+
+  Serial.begin(9600);
+  Serial.println("SPI Slave Ready");
+}
+
+void loop()
+{
+  // Only read when SS is LOW (master active)
+  if (!(PINB & (1 << PB2)))
+  {
+    uint8_t data = spi_slave_receive();
+    Serial.print("Received: ");
+    Serial.println(data);
+  }
+}
