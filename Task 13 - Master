@@ -1,0 +1,40 @@
+#include <Arduino.h>
+
+static const uint8_t KEY1 = 0xB7;
+static const uint8_t KEY2 = 0x3D;
+
+static const uint8_t S[16]  = { 0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD,
+                                0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2 };
+static const uint8_t Si[16] = { 0x5, 0xE, 0xF, 0x8, 0xC, 0x1, 0x2, 0xD,
+                                0xB, 0x4, 0x6, 0x3, 0x0, 0x7, 0x9, 0xA };
+
+static inline uint8_t rotl8(uint8_t x, uint8_t r) { return (uint8_t)((x << r) | (x >> (8 - r))); }
+
+static inline uint8_t sub_nibbles(uint8_t x) {
+  return (uint8_t)((S[x >> 4] << 4) | S[x & 0x0F]);
+}
+
+static inline uint8_t encrypt_ecb(uint8_t p) {
+  uint8_t x = (uint8_t)(p ^ KEY1);
+  x = sub_nibbles(x);
+  x = rotl8(x, 3);
+
+  x ^= KEY2;
+  x = sub_nibbles(x);
+  x = rotl8(x, 1);
+  return x;
+}
+
+void setup() {
+  Serial.begin(9600);
+}
+
+void loop() {
+  static uint8_t counter = 0;
+
+  uint8_t c = encrypt_ecb(counter);
+  Serial.write(c);     
+  counter++;            
+
+  delay(100);           
+}
