@@ -1,0 +1,122 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+#define SLAVE_ADDRESS 0x08
+#define BUTTON_PIN 2  
+#define LED_PIN 5    
+
+volatile uint8_t data_to_send = '0';
+volatile uint8_t received_data = 0;
+volatile uint8_t led_timer = 0;
+
+void i2c_slave_init(uint8_t address) {
+    TWAR = (address << 1);
+    TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE);
+    
+    PORTC |= (1 << PC4) | (1 << PC5);
+}
+
+void gpio_init() {
+    DDRD &= ~(1 << BUTTON_PIN);  
+    PORTD &= ~(1 << BUTTON_PIN); 
+    
+    DDRD |= (1 << LED_PIN);
+    PORTD &= ~(1 << LED_PIN);
+}
+
+uint8_t read_button() {
+    return (PIND & (1 << BUTTON_PIN)) ? 1 : 0;
+}
+
+void led_on() {
+    PORTD |= (1 << LED_PIN);
+}
+
+void led_off() {
+    PORTD &= ~(1 << LED_PIN);
+}
+
+ISR(TWI_vect) {
+    uint8_t status = TWSR & 0xF8;
+    
+    switch (status) {
+        case 0x60:  
+        case 0x70: 
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        case 0x80: 
+        case 0x90:
+            received_data = TWDR;
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        case 0xA8:  
+        case 0xB8:  
+            TWDR = data_to_send;
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        case 0xC0:  
+        case 0xC8:
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        case 0xA0:
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        case 0x00: 
+            TWCR = (1 << TWSTO) | (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+            
+        default:
+            TWCR = (1 << TWEN) | (1 << TWEA) | (1 << TWIE) | (1 << TWINT);
+            break;
+    }
+}
+
+int main(void) {
+    uint8_t last_btn = 0;
+    uint8_t curr_btn = 0;
+    
+    gpio_init();
+    i2c_slave_init(SLAVE_ADDRESS);
+    
+    sei();  
+    
+    _delay_ms(1000);
+    
+    while (1) {
+        if (received_data == 'A') {
+            led_on();
+            led_timer = 20; 
+            received_data = 0;
+        }
+        
+        if (led_timer > 0) {
+            led_timer--;
+            if (led_timer == 0) {
+                led_off();
+            }
+        }
+        
+        curr_btn = read_button();
+        
+        if (curr_btn == 1 && last_btn == 0) {
+            data_to_send = 'B';
+            _delay_ms(100); 
+        } 
+        else if (curr_btn == 0 && last_btn == 1) {
+            data_to_send = '0';
+        }
+        
+        last_btn = curr_btn;
+        
+        _delay_ms(50);
+    }
+    
+    return 0;
+}
