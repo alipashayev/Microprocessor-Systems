@@ -1,0 +1,40 @@
+#include <Arduino.h>
+
+static const uint8_t K1 = 0x5A;
+static const uint8_t K2 = 0xC3;
+static const uint8_t NONCE = 0x9D;
+
+static inline uint8_t xorshift8(uint8_t x) {
+  x ^= (uint8_t)(x << 3);
+  x ^= (uint8_t)(x >> 5);
+  x ^= (uint8_t)(x << 1);
+  return x;
+}
+
+static inline uint8_t keystream(uint8_t ctr) {
+  uint8_t s = (uint8_t)((NONCE ^ K1) + ctr);
+  s = xorshift8(s);
+  s = xorshift8(s);
+  s = xorshift8(s);
+  return (uint8_t)(s ^ K2);
+}
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("CTR Receiver ready");
+}
+
+void loop() {
+  static uint8_t expected_ctr = 0;
+
+  if (Serial.available()) {
+    uint8_t cipher = Serial.read();
+    uint8_t ks = keystream(expected_ctr);
+    uint8_t plain = cipher ^ ks;
+
+    Serial.print("Decrypted value: ");
+    Serial.println(plain);
+
+    expected_ctr++;
+  }
+}
